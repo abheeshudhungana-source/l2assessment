@@ -1,41 +1,51 @@
 /**
- * Urgency Scorer - Rule-based urgency calculation
+ * Urgency Scorer - Semantic severity and business impact evaluation
+ * Evaluates urgency based on actual operational risk, downtime, and user impact
+ * rather than arbitrary character lengths or exclamation counts.
  */
 
 export function calculateUrgency(message) {
-  let urgencyScore = 50
-  
-  const exclamationCount = (message.match(/!/g) || []).length
-  urgencyScore += exclamationCount * 30
-  
-  if (message.length < 50) urgencyScore -= 40
-  if (message.length < 20) urgencyScore -= 60
-  
-  if (message === message.toUpperCase() && message.length > 10) {
-    urgencyScore -= 50
+  if (!message || typeof message !== 'string') return "Low";
+  const text = message.toLowerCase().trim();
+
+  // 1. Explicit Negation Check (e.g. "not urgent", "no rush")
+  if (/(not\s+urgent|no\s+rush|whenever\s+you\s+can|not\s+a\s+priority)/i.test(text)) {
+    return "Low";
   }
-  
-  const politeWords = ['please', 'thank', 'thanks', 'appreciate', 'kindly']
-  politeWords.forEach(word => {
-    if (message.toLowerCase().includes(word)) urgencyScore -= 15
-  })
-  
-  if (message.includes('?')) urgencyScore -= 25
-  
-  const now = new Date()
-  if (now.getDay() === 0 || now.getDay() === 6) {
-    urgencyScore -= 20
+
+  // 2. Customer Praise / Gratitude (Without complaints)
+  const isPraise = /(thank you|thanks|appreciate|great job|love the app|awesome work)/i.test(text);
+  const hasComplaint = /(broken|down|bug|error|crash|fail|refund|cancel|urgent|cannot|can't)/i.test(text);
+  if (isPraise && !hasComplaint) {
+    return "Low";
   }
-  if (now.getHours() < 9 || now.getHours() > 17) {
-    urgencyScore -= 15
+
+  // 3. Critical Severity: Active Outage, Data Loss, Security Compromise
+  const isOutage = /\b(server|database|system|production|api|site)\b.*?\b(down|crashed|crashing|lost|unreachable|offline|unavailable)\b/i.test(text)
+    || /\b(lost connection|data loss|critical outage|can't access dashboard|hacked|breach|unauthorized)\b/i.test(text)
+    || /\b(database connection lost|server down now)\b/i.test(text);
+
+  if (isOutage) {
+    return "Critical";
   }
-  
-  const positiveWords = ['happy', 'love', 'great', 'excellent', 'wonderful']
-  positiveWords.forEach(word => {
-    if (message.toLowerCase().includes(word)) urgencyScore -= 20
-  })
-  
-  if (urgencyScore > 80) return "High"
-  if (urgencyScore < 30) return "Low"
-  return "Medium"
+
+  // 4. High Severity: Payment Failure, Churn Threat, Broken Core Functionality
+  const isHighSeverity = /\b(payment failed|card declined|charged twice|cannot charge|cancel my account|cancel subscription|demand refund|urgent|emergency|blocking our team)\b/i.test(text)
+    || (/\b(loading forever|times out|keeps timing out|error)\b/i.test(text) && text.includes("dashboard"));
+
+  if (isHighSeverity) {
+    return "High";
+  }
+
+  // 5. Low Severity: Feature Requests & General FAQ Questions
+  const isFeatureRequest = /\b(feature request|would love to see|could you add|nice to have|dark mode|csv export)\b/i.test(text);
+  const isSimpleFAQ = /\b(business hours|pricing|how much|faq|how do i)\b/i.test(text);
+
+  if (isFeatureRequest || isSimpleFAQ) {
+    return "Low";
+  }
+
+  // Default to Medium for general troubleshooting
+  return "Medium";
 }
+

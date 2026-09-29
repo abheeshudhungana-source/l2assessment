@@ -22,9 +22,11 @@ function HistoryPage() {
     }
   }
 
-  const sortedHistory = [...history].sort((a, b) => 
-    a.message.localeCompare(b.message)
-  )
+  const sortedHistory = [...history].sort((a, b) => {
+    const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return timeB - timeA;
+  })
   
   const filteredHistory = filter === 'all' 
     ? sortedHistory 
@@ -39,7 +41,7 @@ function HistoryPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Analysis History</h1>
-              <p className="text-gray-600">View and manage past message analyses</p>
+              <p className="text-gray-600">View and manage past message analyses (sorted newest first)</p>
             </div>
             {history.length > 0 && (
               <button
@@ -110,23 +112,34 @@ function HistoryPage() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="text-sm text-gray-500 mb-1">
-                      {new Date(item.timestamp).toLocaleString()}
+                    <div className="flex items-center space-x-2 text-sm text-gray-500 mb-1">
+                      <span>{new Date(item.timestamp).toLocaleString()}</span>
+                      {item.slaTarget && (
+                        <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-medium">
+                          SLA: {item.slaTarget}
+                        </span>
+                      )}
                     </div>
                     <div className="text-gray-800 font-medium mb-2">
                       "{item.message.substring(0, 100)}{item.message.length > 100 ? '...' : ''}"
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-semibold">
                         {item.category}
                       </span>
                       <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                        item.urgency === 'High' ? 'bg-red-200 text-red-900' :
+                        item.urgency === 'Critical' ? 'bg-red-200 text-red-900 font-bold' :
+                        item.urgency === 'High' ? 'bg-orange-200 text-orange-900' :
                         item.urgency === 'Medium' ? 'bg-yellow-200 text-yellow-900' :
                         'bg-green-200 text-green-900'
                       }`}>
                         {item.urgency} Urgency
                       </span>
+                      {item.department && (
+                        <span className="text-xs bg-purple-100 text-purple-800 px-3 py-1 rounded-full font-semibold">
+                          📍 {item.department}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="text-gray-400 ml-4">
@@ -150,6 +163,14 @@ function HistoryPage() {
                         {item.recommendedAction}
                       </div>
                     </div>
+                    {item.draftReply && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-600 mb-1">Suggested Customer Reply</div>
+                        <div className="text-sm text-gray-800 bg-blue-50/70 p-3 rounded border border-blue-200 italic">
+                          "{item.draftReply}"
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <div className="text-xs font-semibold text-gray-600 mb-1">AI Reasoning</div>
                       <div className="bg-white p-3 rounded border border-gray-200">

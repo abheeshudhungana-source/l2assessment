@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { categorizeMessage } from '../utils/llmHelper'
-import { calculateUrgency } from '../utils/urgencyScorer'
-import { getRecommendedAction } from '../utils/templates'
+import { triageMessage } from '../utils/llmHelper'
+import { shouldEscalate } from '../utils/templates'
 
 function AnalyzePage() {
   const [message, setMessage] = useState('')
   const [results, setResults] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [copiedDraft, setCopiedDraft] = useState(false)
 
   useEffect(() => {
     // Check for example message from home page
@@ -26,23 +26,23 @@ function AnalyzePage() {
 
     setIsLoading(true)
     setResults(null)
+    setCopiedDraft(false)
     
     try {
-      // Run categorization (LLM call)
-      const { category, reasoning } = await categorizeMessage(message)
-      
-      // Calculate urgency (rule-based)
-      const urgency = calculateUrgency(message)
-      
-      // Get recommended action (template-based)
-      const recommendedAction = getRecommendedAction(category)
+      // Run unified multi-dimensional triage
+      const triage = await triageMessage(message)
+      const isEscalated = shouldEscalate(triage.category, triage.urgency, message)
       
       const analysisResult = {
         message,
-        category,
-        urgency,
-        recommendedAction,
-        reasoning,
+        category: triage.category,
+        urgency: triage.urgency,
+        department: triage.department,
+        slaTarget: triage.slaTarget,
+        recommendedAction: triage.recommendedAction,
+        draftReply: triage.draftReply,
+        reasoning: triage.reasoning,
+        isEscalated,
         timestamp: new Date().toISOString()
       }
 
@@ -63,15 +63,29 @@ function AnalyzePage() {
   const handleClear = () => {
     setMessage('')
     setResults(null)
+    setCopiedDraft(false)
+  }
+
+  const handleCopyDraft = () => {
+    if (results?.draftReply) {
+      navigator.clipboard.writeText(results.draftReply)
+      setCopiedDraft(true)
+      setTimeout(() => setCopiedDraft(false), 2500)
+    }
   }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Analyze Customer Message</h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-2xl font-bold text-gray-900">Analyze Customer Message</h1>
+            <span className="text-xs bg-indigo-100 text-indigo-800 font-semibold px-2.5 py-1 rounded-full">
+              Relay AI Triage Engine v2.0
+            </span>
+          </div>
           <p className="text-gray-600 mb-6">
-            Paste a customer support message below to automatically categorize and prioritize.
+            Paste a customer support message below to automatically categorize, evaluate urgency, route to the right department, and generate a draft response.
           </p>
 
           {/* Input Section */}
@@ -82,8 +96,8 @@ function AnalyzePage() {
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Paste customer message here..."
-              className="w-full border border-gray-300 rounded-lg p-3 h-40 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Paste customer message here (e.g. 'Database connection lost', 'Could you add dark mode?', etc.)..."
+              className="w-full border border-gray-300 rounded-lg p-3 h-36 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             />
             <div className="text-sm text-gray-500 mt-1">
@@ -96,7 +110,7 @@ function AnalyzePage() {
             <button
               onClick={handleAnalyze}
               disabled={isLoading}
-              className={`flex-1 py-3 rounded-lg font-semibold ${
+              className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
                 isLoading
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
@@ -108,10 +122,10 @@ function AnalyzePage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  Analyzing...
+                  Triaging Message...
                 </span>
               ) : (
-                'Analyze Message'
+                '⚡ Triage Message'
               )}
             </button>
             <button
@@ -126,57 +140,109 @@ function AnalyzePage() {
 
         {/* Results Section */}
         {results && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Analysis Results</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <div className="text-sm font-semibold text-gray-600 mb-1">Category</div>
-                <div className="inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold">
+          <div className="bg-white rounded-lg shadow-md p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+              <h2 className="text-xl font-bold text-gray-900">Triage & Routing Results</h2>
+              {results.isEscalated && (
+                <span className="inline-flex items-center bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full animate-pulse">
+                  🚨 Escalated Ticket
+                </span>
+              )}
+            </div>
+
+            {/* Top Metrics Row: Category, Urgency, Department, SLA */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Category</div>
+                <div className="text-sm font-bold text-blue-950">
                   {results.category}
                 </div>
               </div>
 
-              <div>
-                <div className="text-sm font-semibold text-gray-600 mb-1">Urgency Level</div>
-                <div className={`inline-block px-4 py-2 rounded-lg font-semibold ${
-                  results.urgency === 'High' ? 'bg-red-200 text-red-900' :
-                  results.urgency === 'Medium' ? 'bg-yellow-200 text-yellow-900' :
-                  'bg-green-200 text-green-900'
+              <div className={`border rounded-lg p-3 ${
+                results.urgency === 'Critical' ? 'bg-red-50 border-red-200' :
+                results.urgency === 'High' ? 'bg-orange-50 border-orange-200' :
+                results.urgency === 'Medium' ? 'bg-yellow-50 border-yellow-200' :
+                'bg-green-50 border-green-200'
+              }`}>
+                <div className="text-xs font-semibold uppercase tracking-wide mb-1 text-gray-600">Urgency Level</div>
+                <div className={`text-sm font-bold ${
+                  results.urgency === 'Critical' ? 'text-red-700' :
+                  results.urgency === 'High' ? 'text-orange-700' :
+                  results.urgency === 'Medium' ? 'text-yellow-800' :
+                  'text-green-700'
                 }`}>
+                  {results.urgency === 'Critical' && '🔥 '}
                   {results.urgency}
                 </div>
               </div>
 
-              <div>
-                <div className="text-sm font-semibold text-gray-600 mb-1">Recommended Action</div>
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                  <p className="text-gray-800">{results.recommendedAction}</p>
+              <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+                <div className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-1">Assigned Department</div>
+                <div className="text-sm font-bold text-purple-950">
+                  📍 {results.department}
                 </div>
               </div>
 
-              <div>
-                <div className="text-sm font-semibold text-gray-600 mb-1">AI Reasoning</div>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <div className="prose prose-sm max-w-none text-gray-700">
-                    <ReactMarkdown>
-                      {results.reasoning}
-                    </ReactMarkdown>
-                  </div>
+              <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+                <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">Target SLA</div>
+                <div className="text-sm font-bold text-emerald-950">
+                  ⏱️ {results.slaTarget}
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-200">
+            {/* Recommended Action */}
+            <div>
+              <div className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
+                Recommended Operational Action
+              </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3.5 text-gray-800 text-sm">
+                {results.recommendedAction}
+              </div>
+            </div>
+
+            {/* AI Draft Response Card */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                  Suggested Customer Reply (1-Click Draft)
+                </div>
+                <button
+                  onClick={handleCopyDraft}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                >
+                  <span>{copiedDraft ? '✅ Copied to clipboard!' : '📋 Copy Draft'}</span>
+                </button>
+              </div>
+              <div className="bg-blue-50/60 border border-blue-200 rounded-lg p-3.5 text-gray-800 text-sm italic">
+                "{results.draftReply}"
+              </div>
+            </div>
+
+            {/* AI Reasoning */}
+            <div>
+              <div className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
+                Classification Reasoning
+              </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3.5 text-xs text-gray-700">
+                <ReactMarkdown>
+                  {results.reasoning}
+                </ReactMarkdown>
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="pt-3 border-t border-gray-200 flex space-x-3">
               <button
                 onClick={() => {
-                  const text = `Category: ${results.category}\nUrgency: ${results.urgency}\nRecommendation: ${results.recommendedAction}\n\nReasoning: ${results.reasoning}`
-                  navigator.clipboard.writeText(text)
-                  alert('Results copied to clipboard!')
+                  const summary = `[Relay AI Triage Summary]\nCategory: ${results.category}\nUrgency: ${results.urgency}\nDepartment: ${results.department}\nSLA: ${results.slaTarget}\nAction: ${results.recommendedAction}\nDraft: "${results.draftReply}"\nReasoning: ${results.reasoning}`
+                  navigator.clipboard.writeText(summary)
+                  alert('Full triage summary copied to clipboard!')
                 }}
-                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 font-semibold"
+                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm font-semibold"
               >
-                📋 Copy Results
+                📋 Copy Full Triage Summary
               </button>
             </div>
           </div>
