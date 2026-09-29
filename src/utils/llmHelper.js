@@ -221,12 +221,16 @@ export async function categorizeMessage(message) {
 export function getSemanticOfflineFallback(message) {
   const text = (message || '').toLowerCase().trim();
 
-  // 1. Customer Praise (with negation safety)
+  // 1. Customer Praise (with contextual negation and compound sentiment safety)
   const isPraise = /(thank you|thanks|appreciate|great job|love the app|awesome work|really happy|positive feedback|really nice design)/i.test(text);
-  const hasComplaint = /(broken|down|bug|error|crash|fail|refund|cancel|urgent|cannot|can't|however|but)/i.test(text);
-  const isPastResolution = /(thanks for fixing|resolved the|appreciate the quick (fix|turnaround)|fixed the)/i.test(text);
+  
+  // Whitelist praise idioms containing negation or the word 'issue'
+  const isPraiseIdiom = /(no\s+(complaints?|issues?|problems?)|without\s+(any\s+)?(issue|problem)|not\s+only.*?but|thanks\s+for\s+fixing|resolved\s+(the|this|our)\s+issue|appreciate\s+the\s+quick\s+(fix|turnaround)|fixed\s+the)/i.test(text);
 
-  if ((isPraise && !hasComplaint) || isPastResolution) {
+  // Active complaints: Look for actual negative assertions, not isolated words
+  const hasActiveComplaint = /(is|was|still|keeps)\s+(broken|down|crashing|failing|buggy)|(cannot|can't|unable to)\s+(access|login|use|load)|(refund|cancel\s+(my|our)\s+(account|subscription))|(but|however)\s+.*?(broken|down|not\s+working|failed|slow)/i.test(text);
+
+  if ((isPraise && !hasActiveComplaint) || isPraiseIdiom) {
     return {
       category: "Customer Praise",
       urgency: "Low",

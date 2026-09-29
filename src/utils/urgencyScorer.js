@@ -13,10 +13,12 @@ export function calculateUrgency(message) {
     return "Low";
   }
 
-  // 2. Customer Praise / Gratitude (Without complaints)
-  const isPraise = /(thank you|thanks|appreciate|great job|love the app|awesome work)/i.test(text);
-  const hasComplaint = /(broken|down|bug|error|crash|fail|refund|cancel|urgent|cannot|can't)/i.test(text);
-  if (isPraise && !hasComplaint) {
+  // 2. Customer Praise / Gratitude (with compound idiom safety)
+  const isPraise = /(thank you|thanks|appreciate|great job|love the app|awesome work|really happy|positive feedback)/i.test(text);
+  const isPraiseIdiom = /(no\s+(complaints?|issues?|problems?)|without\s+(any\s+)?(issue|problem)|not\s+only.*?but|thanks\s+for\s+fixing|resolved\s+(the|this|our)\s+issue)/i.test(text);
+  const hasActiveComplaint = /(is|was|still|keeps)\s+(broken|down|crashing|failing|buggy)|(cannot|can't|unable to)\s+(access|login|use|load)|(refund|cancel\s+(my|our)\s+(account|subscription))/i.test(text);
+  
+  if ((isPraise && !hasActiveComplaint) || isPraiseIdiom) {
     return "Low";
   }
 
