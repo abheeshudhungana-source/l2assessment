@@ -221,33 +221,19 @@ export async function categorizeMessage(message) {
 export function getSemanticOfflineFallback(message) {
   const text = (message || '').toLowerCase().trim();
 
-  // 1. Customer Praise (with contextual negation and compound sentiment safety)
-  const isPraise = /(thank you|thanks|appreciate|great job|love the app|awesome work|really happy|positive feedback|really nice design)/i.test(text);
-  
-  // Whitelist praise idioms containing negation or the word 'issue'
-  const isPraiseIdiom = /(no\s+(complaints?|issues?|problems?)|without\s+(any\s+)?(issue|problem)|not\s+only.*?but|thanks\s+for\s+fixing|resolved\s+(the|this|our)\s+issue|appreciate\s+the\s+quick\s+(fix|turnaround)|fixed\s+the)/i.test(text);
+  // --- SEVERITY-FIRST OFFLINE TRIAGE HIERARCHY ---
 
-  // Active complaints: Look for actual negative assertions, not isolated words
-  const hasActiveComplaint = /(is|was|still|keeps)\s+(broken|down|crashing|failing|buggy)|(cannot|can't|unable to)\s+(access|login|use|load)|(refund|cancel\s+(my|our)\s+(account|subscription))|(but|however)\s+.*?(broken|down|not\s+working|failed|slow)/i.test(text);
+  // 1. Check for Active Negative Complaints & Outages FIRST
+  const hasActiveComplaint = /(still|haven't|not)\s+(been\s+)?fixed|(is|was|still|keeps)\s+(broken|down|crashing|failing|buggy)|(cannot|can't|unable to)\s+(access|login|use|load)|(refund|cancel\s+(my|our)\s+(account|subscription))|(but|however)\s+.*?(broken|down|not\s+working|failed|slow|issue|problem|worse|again)/i.test(text);
 
-  if ((isPraise && !hasActiveComplaint) || isPraiseIdiom) {
-    return {
-      category: "Customer Praise",
-      urgency: "Low",
-      department: "Customer Success",
-      slaTarget: "24 hours",
-      recommendedAction: "Send thank-you response and log positive feedback in customer health score.",
-      draftReply: "Thank you so much for the kind words! We really appreciate your support and are thrilled to hear you're having a great experience.",
-      reasoning: "Offline rule: Detected positive customer sentiment and appreciation without active support complaints."
-    };
-  }
-
-  // 2. Active Outage / Critical Production Emergency (Present-Tense Only)
   const isActiveOutage = /\b(server|database|system|production|api|site)\b.*?\b(down|crashed|crashing|lost|unreachable|offline|unavailable)\b/i.test(text)
     || /\b(lost connection|data loss|critical outage|can't access dashboard|hacked|breach|unauthorized)\b/i.test(text)
     || /\b(database connection lost|server down now)\b/i.test(text);
 
-  if (isActiveOutage && !isPastResolution) {
+  // If there is an active outage (unless it is purely historical praise like "was down last week but now fixed")
+  const isPureHistoricalPraise = /^(thanks?|thank you).*?(was\s+down|fixed).*?(now\s+(working|good|fine)|resolved)/i.test(text) && !text.includes("again") && !text.includes("worse");
+
+  if (isActiveOutage && !isPureHistoricalPraise) {
     return {
       category: "Technical Problem",
       urgency: "Critical",
@@ -259,8 +245,26 @@ export function getSemanticOfflineFallback(message) {
     };
   }
 
-  // 3. Technical Problems / Bugs (General)
-  const isTechnical = /\b(bug|error|not loading|keeps loading|times out|broken|issue with|won't load|glitch|won't open|not working)\b/i.test(text);
+  // 2. Customer Praise (Guarded: NEVER matches if an active complaint exists)
+  const isPraise = /(thank you|thanks|appreciate|great job|love the app|awesome work|really happy|positive feedback|really nice design)/i.test(text);
+  const isPraiseIdiom = /(no\s+(complaints?|issues?|problems?)|without\s+(any\s+)?(issue|problem)|not\s+only.*?but|thanks\s+for\s+fixing|resolved\s+(the|this|our)\s+issue|appreciate\s+the\s+quick\s+(fix|turnaround))/i.test(text);
+
+  if ((isPraise || isPraiseIdiom) && !hasActiveComplaint) {
+    return {
+      category: "Customer Praise",
+      urgency: "Low",
+      department: "Customer Success",
+      slaTarget: "24 hours",
+      recommendedAction: "Send thank-you response and log positive feedback in customer health score.",
+      draftReply: "Thank you so much for the kind words! We really appreciate your support and are thrilled to hear you're having a great experience.",
+      reasoning: "Offline rule: Detected positive customer sentiment and appreciation without active support complaints."
+    };
+  }
+
+  // 3. Technical Problems / Active Bugs
+  const isTechnical = /\b(bug|error|not loading|keeps loading|times out|broken|issue with|won't load|glitch|won't open|not working)\b/i.test(text)
+    || hasActiveComplaint;
+
   if (isTechnical) {
     return {
       category: "Technical Problem",
@@ -269,7 +273,7 @@ export function getSemanticOfflineFallback(message) {
       slaTarget: "1 hour",
       recommendedAction: "Collect user browser/device logs, inspect recent deployment errors, and triage bug.",
       draftReply: "Hello, thank you for letting us know about this issue. Our team is investigating what caused this glitch and will get back to you shortly.",
-      reasoning: "Offline rule: Detected technical defect or UI loading failure."
+      reasoning: "Offline rule: Detected active technical defect, unresolved bug, or system failure."
     };
   }
 
