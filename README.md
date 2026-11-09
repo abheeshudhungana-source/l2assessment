@@ -163,11 +163,18 @@ computed, even though the message text never changes. Checked directly with
 these 10 messages, **#2, #4, #7, and #8 would score differently** if this
 table had been computed on a weekend or outside business hours instead —
 specifically, each would drop one level (#2 High→Medium, #4 Medium→Low, #7
-Medium→Low, #8 High→Medium) under those conditions (checked at one
-representative weekend/off-hours point, Sunday 2am, not every such day/hour
-individually — this generalizes because the penalty is a flat, categorical
-`-20`/`-15`, not graduated, so any weekend day and any off-hour triggers the
-same penalty). #7 in particular — shown
+Medium→Low, #8 High→Medium) under those conditions. Checked with
+[`verification/check_time_combinations.cjs`](verification/check_time_combinations.cjs)
+against all 4 time conditions separately (not just the combined weekend+
+off-hours case): **either the weekend penalty alone or the off-hours
+penalty alone is already enough** to cause the one-level drop for all 4
+rows — the combined condition causes no additional drop beyond either
+penalty alone. This generalizes across the whole weekend/off-hours
+category, not just the specific Sunday 2am point tested, because the
+original code applies each penalty as a flat `-20`/`-15`, not a graduated
+one — any Saturday or Sunday triggers the same weekend penalty, and any
+hour before 9am or after 5pm triggers the same off-hours penalty. #7 in
+particular — shown
 above as unchanged (Medium→Medium) — would actually look like a Medium→Low
 *improvement* if this table had been run on a weekend instead of a Monday
 afternoon. The new scorer has no time dependency at all (verified by reading
