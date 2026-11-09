@@ -125,8 +125,11 @@ keyword-based mock categorizer.
 
 The original scorer keyed almost entirely on message *style* — length, ALL CAPS,
 `?`, even weekday/hour — instead of *content*. Full before/after on all 10 test
-messages, computed by running the actual old and new scoring functions directly
-against each message (not recalled from memory):
+messages, computed by extracting the actual old and new `calculateUrgency`
+functions into a standalone script and running them directly against each
+message's text (not driven through the live app via Playwright, and not
+recalled from memory). **Computed Monday, Nov 9, 2026, ~14:44 ET** (a weekday,
+inside normal business hours):
 
 | # | Message | Before | After | Changed? |
 |---|---|---|---|---|
@@ -148,6 +151,21 @@ against each message (not recalled from memory):
 earlier version of this table incorrectly listed #7 as Low→Medium; it was
 actually Medium→Medium, i.e. unchanged — corrected here after recomputing
 directly from the scoring code rather than relying on an earlier summary.)
+
+**The "Before" column is time-sensitive and this table reflects one specific
+moment.** The old scorer's weekend/after-hours penalties (`-20` on Saturday/
+Sunday, `-15` outside 9am–5pm, both based on `new Date()` at the moment it
+runs) mean its score for a given message can change depending on when it's
+computed, even though the message text never changes. Checked directly: of
+these 10 messages, **#2, #4, #7, and #8 would score differently** if this
+table had been computed on a weekend or outside business hours instead —
+specifically, each would drop one level (#2 High→Medium, #4 Medium→Low, #7
+Medium→Low, #8 High→Medium) under those conditions. #7 in particular — shown
+above as unchanged (Medium→Medium) — would actually look like a Medium→Low
+*improvement* if this table had been run on a weekend instead of a Monday
+afternoon. The new scorer has no time dependency at all (verified by reading
+`calculateUrgency` — it never references `Date`), so the **"After" column is
+stable regardless of when it's computed**; only "Before" moves.
 
 **Fixed**: rewrote the scorer as tiered/gated logic — an actual severity signal
 (outage, fraud, security, data loss, explicit urgency language) now forces
@@ -186,21 +204,23 @@ false-negative-Low.
 
 The same keyword matching also triggers on substrings inside unrelated words,
 since it's a plain `.includes()` check rather than a word-boundary match.
-Verified directly: **"Can you help me download the invoice?"** matches
-`down` and gets flagged High; **"Is this legally binding?"** and
-**"illegal"** match `legal`; **"I love the new security camera app"**
-matches `security`. Same root cause as the negation issue above (no
-linguistic structure, just substrings) and the same fix direction — switch
-to word-boundary regex matching (e.g. `\bdown\b`) for the short, common
-words in `CRITICAL_SIGNALS` (`down`, `legal`, `security`, `asap`) that are
-most prone to this. Not fixed in this pass; listed here as a known issue.
+Verified by extracting `CRITICAL_SIGNALS` and running the match logic
+directly against each example (not through the live app's UI): **"Can you
+help me download the invoice?"** matches `down` and gets flagged High; **"Is
+this legally binding?"** and **"illegal"** match `legal`; **"I love the new
+security camera app"** matches `security`. Same root cause as the negation
+issue above (no linguistic structure, just substrings) and the same fix
+direction — switch to word-boundary regex matching (e.g. `\bdown\b`) for the
+short, common words in `CRITICAL_SIGNALS` (`down`, `legal`, `security`,
+`asap`) that are most prone to this. Not fixed in this pass; listed here as
+a known issue.
 
-The duplicate-charge check (`reportsDuplicateCharge`) has the same problem
-for a different reason: it flags High on any message containing "charge"
-plus "double" or "twice" anywhere in the text, with no requirement that
-they're actually describing the same event. Verified directly: **"Can you
-double-check the charge on my account?"** triggers it, even though nothing
-fraudulent is being reported.
+The duplicate-charge check (`reportsDuplicateCharge`) has the same
+substring-matching problem, not the negation problem above — it's a loose
+"charge" + "double"/"twice" check, not a misread negation. Verified the same
+way, by extracting `reportsDuplicateCharge` and running it directly: **"Can
+you double-check the charge on my account?"** returns `true`, even though
+nothing fraudulent is being reported.
 
 ### Known limitation: some real incidents without a critical keyword land at Medium, not High
 
