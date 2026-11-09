@@ -169,6 +169,20 @@ scoring. Flagging as a known issue rather than a blocking one, since
 false-positive-High is a much safer failure mode for a support-triage tool than
 false-negative-Low.
 
+### Verification
+
+- `npm run build` succeeds with no errors.
+- `npm run lint` reports **5 errors, same count as `main` before this change**
+  (2 unused-var errors in `llmHelper.js`, now on different line numbers because
+  of the added lines above them, plus 3 pre-existing React Hooks warnings in
+  `HistoryPage.jsx` and `HomePage.jsx` that this change doesn't touch). **This
+  is not a regression** — it's the same 5 issues the codebase already had,
+  carried forward unchanged.
+- Re-tested a fresh clone with **no** `.env.local` / API key present: the app
+  renders normally (no blank screen) and the mock categorizer correctly
+  produces Technical Problem / High urgency / escalation banner for an
+  outage message.
+
 ## Security Note
 
 ⚠️ **Warning**: This application exposes the Groq API key in the browser (using `dangerouslyAllowBrowser: true`). This is acceptable for local development only but should **NEVER** be done in production. In a real application, API calls should be made from a secure backend server.
