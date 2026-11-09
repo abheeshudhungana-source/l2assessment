@@ -34,10 +34,23 @@ so the claims are independently reproducible, not just asserted.
   README's "Known limitation" sections for the full writeup. Note the
   weekend/off-hours penalties are applied categorically in the original
   code (any Saturday or Sunday; any hour before 9 or after 17 triggers the
-  same flat penalty, not a graduated one), so the single `Sunday 2am` test
-  point generalizes to the whole weekend/off-hours category — it was not
-  separately checked against every other weekend day or off-hour.
+  same flat penalty, not a graduated one), so the `Sunday 2am` test point —
+  which applies *both* penalties at once — generalizes to the whole
+  weekend/off-hours category. See `check_time_combinations.cjs` below for
+  the check that confirms this, including each penalty in isolation.
 
-Both `.cjs` scripts are plain Node and need nothing installed beyond Node
-itself; anyone can clone this repo and re-run them to check the numbers,
-on any day, with no setup beyond having Node installed.
+- **`check_time_combinations.cjs`** — also pure Node, also fully
+  deterministic (same hardcoded-parameter approach as `v2`, no `Date`
+  calls). Checks the 4 time-sensitive rows (#2, #4, #7, #8) under all 4
+  combinations separately: weekday/business-hours (baseline), weekday/
+  off-hours only, weekend/business-hours only, and weekend/off-hours
+  combined. Confirms that **either penalty alone is already enough** to
+  drop each of these 4 rows one level — the combined condition doesn't
+  cause any additional drop beyond what one penalty alone causes. Run with
+  `node check_time_combinations.cjs`.
+
+All three `.cjs` compute scripts are plain Node and need nothing installed
+beyond Node itself; anyone can clone this repo and re-run them to check the
+numbers, on any day, with no setup beyond having Node installed.
+(`test_messages.cjs` is the exception — it needs Playwright and a running
+dev server, as noted above.)
