@@ -195,6 +195,27 @@ to word-boundary regex matching (e.g. `\bdown\b`) for the short, common
 words in `CRITICAL_SIGNALS` (`down`, `legal`, `security`, `asap`) that are
 most prone to this. Not fixed in this pass; listed here as a known issue.
 
+The duplicate-charge check (`reportsDuplicateCharge`) has the same problem
+for a different reason: it flags High on any message containing "charge"
+plus "double" or "twice" anywhere in the text, with no requirement that
+they're actually describing the same event. Verified directly: **"Can you
+double-check the charge on my account?"** triggers it, even though nothing
+fraudulent is being reported.
+
+### Known limitation: some real incidents without a critical keyword land at Medium, not High
+
+Not every genuine incident uses one of the words in `CRITICAL_SIGNALS`.
+**"Is anyone else seeing a 500 error on checkout? This is blocking
+customers."** (test message #10) only matches `error` and `blocking` —
+both `MODERATE_SIGNALS`, not critical ones — so it scores **Medium**, even
+though "blocking customers" during checkout is arguably something a support
+team should see immediately. This is the mirror image of the other
+limitations above: those over-flag (false High), this one plausibly
+under-flags a real issue to Medium instead of High. Not fixed in this pass;
+a reasonable next step is promoting phrases like "blocking customers" into
+`CRITICAL_SIGNALS`, though that risks reintroducing more substring
+false-positives (see above) and would need its own before/after check.
+
 ### Known limitation: escalation prefix can produce an odd-sounding instruction
 
 `getRecommendedAction` prepends the escalation guidance to the *existing*
