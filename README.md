@@ -169,6 +169,31 @@ scoring. Flagging as a known issue rather than a blocking one, since
 false-positive-High is a much safer failure mode for a support-triage tool than
 false-negative-Low.
 
+### Known limitation: critical-signal matching is substring-based, not word-boundary
+
+The same keyword matching also triggers on substrings inside unrelated words,
+since it's a plain `.includes()` check rather than a word-boundary match.
+Verified directly: **"Can you help me download the invoice?"** matches
+`down` and gets flagged High; **"Is this legally binding?"** and
+**"illegal"** match `legal`; **"I love the new security camera app"**
+matches `security`. Same root cause as the negation issue above (no
+linguistic structure, just substrings) and the same fix direction — switch
+to word-boundary regex matching (e.g. `\bdown\b`) for the short, common
+words in `CRITICAL_SIGNALS` (`down`, `legal`, `security`, `asap`) that are
+most prone to this. Not fixed in this pass; listed here as a known issue.
+
+### Known limitation: escalation prefix can produce an odd-sounding instruction
+
+`getRecommendedAction` prepends the escalation guidance to the *existing*
+category template rather than replacing it, so a High-urgency Technical
+Problem produces: **"Escalate immediately to on-call engineering (possible
+outage) - suggest user to restart their browser."** — a real example,
+verified by running it through the live app. The escalation framing and the
+generic self-serve tip underneath don't make sense together. Not a
+correctness bug in the urgency/escalation logic itself, but a rough edge in
+the combined wording worth fixing by giving High-urgency categories a
+standalone message instead of a prefix+base concatenation.
+
 ### Verification
 
 - `npm run build` succeeds with no errors, before and after this change.
