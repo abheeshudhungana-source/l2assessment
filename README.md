@@ -163,7 +163,11 @@ computed, even though the message text never changes. Checked directly with
 these 10 messages, **#2, #4, #7, and #8 would score differently** if this
 table had been computed on a weekend or outside business hours instead —
 specifically, each would drop one level (#2 High→Medium, #4 Medium→Low, #7
-Medium→Low, #8 High→Medium) under those conditions. #7 in particular — shown
+Medium→Low, #8 High→Medium) under those conditions (checked at one
+representative weekend/off-hours point, Sunday 2am, not every such day/hour
+individually — this generalizes because the penalty is a flat, categorical
+`-20`/`-15`, not graduated, so any weekend day and any off-hour triggers the
+same penalty). #7 in particular — shown
 above as unchanged (Medium→Medium) — would actually look like a Medium→Low
 *improvement* if this table had been run on a weekend instead of a Monday
 afternoon. The new scorer has no time dependency at all (verified by reading
