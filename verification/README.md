@@ -21,23 +21,26 @@ so the claims are independently reproducible, not just asserted.
 - **`compute_before_after_v2.cjs`** — same idea, but reproduces the old
   scorer with full fidelity, including the weekend/after-hours penalty.
   It reports each message's level under three conditions. Two of them are
-  fixed, hardcoded day/hour values (`weekday/9-17` = Monday 2pm,
-  `weekend/off-hours` = Sunday 2am) passed as parameters, **not read from
-  the system clock — these two columns are also deterministic and will
-  match this file's output on any machine, any day.** The third column,
-  `now`, *does* read the real system clock via `new Date()` and will differ
-  depending on when you run it — it's printed for context only and isn't
-  what the README/PR cite as evidence; the time-sensitivity claim in both
-  rests on the two fixed columns, not on `now`. Run with
+  fixed, hardcoded day/hour values — `weekday/9:00-17:59` (Monday 2pm,
+  inside the actual no-penalty window: the code penalizes
+  `getHours() < 9 || getHours() > 17`, so hour 17 itself, i.e. 5:00-5:59pm,
+  is still penalty-free) and `weekend/off-hours` (Sunday 2am) — passed as
+  parameters, not read from the system clock. These two columns are
+  deterministic and will match this file's output on any machine, any day.
+  The third column, `now`, does read the real system clock via `new Date()`
+  and will differ depending on when you run it. It's printed for context
+  only. It isn't what the README/PR cite as evidence; the time-sensitivity
+  claim in both rests on the two fixed columns, not on `now`. Run with
   `node compute_before_after_v2.cjs`. This is what found that rows #2, #4,
   #7, and #8 differ between the two fixed conditions — see the main
-  README's "Known limitation" sections for the full writeup. Note the
+  README's "Known limitation" sections for the full writeup. The
   weekend/off-hours penalties are applied categorically in the original
-  code (any Saturday or Sunday; any hour before 9 or after 17 triggers the
-  same flat penalty, not a graduated one), so the `Sunday 2am` test point —
-  which applies *both* penalties at once — generalizes to the whole
-  weekend/off-hours category. See `check_time_combinations.cjs` below for
-  the check that confirms this, including each penalty in isolation.
+  code for these four rows: any Saturday or Sunday, and any hour before 9
+  or after 17, triggers the same flat penalty, not a graduated one. So the
+  `Sunday 2am` test point — which applies *both* penalties at once —
+  generalizes to the whole weekend/off-hours category for these four rows.
+  See `check_time_combinations.cjs` below for the check that confirms this,
+  including each penalty in isolation.
 
 - **`check_time_combinations.cjs`** — also pure Node, also fully
   deterministic (same hardcoded-parameter approach as `v2`, no `Date`
