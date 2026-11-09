@@ -124,17 +124,30 @@ keyword-based mock categorizer.
 ### 2. Urgency scoring was backwards on real incidents
 
 The original scorer keyed almost entirely on message *style* — length, ALL CAPS,
-`?`, even weekday/hour — instead of *content*. Before/after on the same 10 test
-messages:
+`?`, even weekday/hour — instead of *content*. Full before/after on all 10 test
+messages, computed by running the actual old and new scoring functions directly
+against each message (not recalled from memory):
 
-| Message | Before | After |
-|---|---|---|
-| "SERVER IS DOWN" | Low | **High** |
-| "Site down now" | Low | **High** |
-| "...charged my card twice...fraud..." (polite tone) | Low | **High** |
-| Long, mostly-positive message, one mild "slow" complaint | High | **Medium** |
-| "How do I reset my password?" | Low | Low |
-| "I'd like to cancel my subscription...higher than expected" | Low | Medium |
+| # | Message | Before | After | Changed? |
+|---|---|---|---|---|
+| 1 | "SERVER IS DOWN" | Low | **High** | yes |
+| 2 | "OUR CHECKOUT IS BROKEN!!! WE ARE LOSING SALES RIGHT NOW" | High | High | no |
+| 3 | "...charged my card twice...fraud..." (polite tone) | Low | **High** | yes |
+| 4 | "It would be great if you could add dark mode...Thanks!" | Medium | **Low** | yes |
+| 5 | "Just wanted to say thank you...excellent...love the product!" | Low | Low | no |
+| 6 | "How do I reset my password?" | Low | Low | no |
+| 7 | "I'd like to cancel my subscription...higher than expected" | Medium | Medium | no |
+| 8 | Long, mostly-positive message, one mild "slow" complaint | High | **Medium** | yes |
+| 9 | "Site down now" | Low | **High** | yes |
+| 10 | "Is anyone else seeing a 500 error on checkout?...blocking customers." | Low | **Medium** | yes |
+
+**6 of 10 messages changed urgency level.** The 3 that moved *up* to High (#1,
+#3, #9) are genuine incidents the old scorer buried as Low. The one that moved
+*down* from High (#8) was a false positive — a calm, mostly-positive message.
+#4 and #10 moved to more appropriate levels given their actual content. (An
+earlier version of this table incorrectly listed #7 as Low→Medium; it was
+actually Medium→Medium, i.e. unchanged — corrected here after recomputing
+directly from the scoring code rather than relying on an earlier summary.)
 
 **Fixed**: rewrote the scorer as tiered/gated logic — an actual severity signal
 (outage, fraud, security, data loss, explicit urgency language) now forces
