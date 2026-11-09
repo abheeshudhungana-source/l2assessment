@@ -126,7 +126,8 @@ keyword-based mock categorizer.
 The original scorer keyed almost entirely on message *style* — length, ALL CAPS,
 `?`, even weekday/hour — instead of *content*. Full before/after on all 10 test
 messages, computed by extracting the actual old and new `calculateUrgency`
-functions into a standalone script and running them directly against each
+functions into a standalone script ([`verification/compute_before_after.cjs`](verification/compute_before_after.cjs),
+reproducible with `node verification/compute_before_after.cjs`) and running them directly against each
 message's text (not driven through the live app via Playwright, and not
 recalled from memory). **Computed Monday, Nov 9, 2026, ~14:44 ET** (a weekday,
 inside normal business hours):
@@ -156,7 +157,9 @@ directly from the scoring code rather than relying on an earlier summary.)
 moment.** The old scorer's weekend/after-hours penalties (`-20` on Saturday/
 Sunday, `-15` outside 9am–5pm, both based on `new Date()` at the moment it
 runs) mean its score for a given message can change depending on when it's
-computed, even though the message text never changes. Checked directly: of
+computed, even though the message text never changes. Checked directly with
+[`verification/compute_before_after_v2.cjs`](verification/compute_before_after_v2.cjs)
+(reproducible with `node verification/compute_before_after_v2.cjs`): of
 these 10 messages, **#2, #4, #7, and #8 would score differently** if this
 table had been computed on a weekend or outside business hours instead —
 specifically, each would drop one level (#2 High→Medium, #4 Medium→Low, #7
