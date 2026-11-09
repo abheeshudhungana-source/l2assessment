@@ -171,13 +171,21 @@ false-negative-Low.
 
 ### Verification
 
-- `npm run build` succeeds with no errors.
-- `npm run lint` reports **5 errors, same count as `main` before this change**
-  (2 unused-var errors in `llmHelper.js`, now on different line numbers because
-  of the added lines above them, plus 3 pre-existing React Hooks warnings in
-  `HistoryPage.jsx` and `HomePage.jsx` that this change doesn't touch). **This
-  is not a regression** — it's the same 5 issues the codebase already had,
-  carried forward unchanged.
+- `npm run build` succeeds with no errors, before and after this change.
+- `npm run lint`: **6 errors before this change, 5 after** (verified by running
+  lint against both the pre-fix commit and the fixed code directly, not
+  estimated). One was actually fixed as a side effect of this change —
+  `templates.js`'s `urgency` parameter was previously declared but never
+  used, and is now used by `getRecommendedAction`. **The other 5 are
+  unrelated to this change and were already present before it — not
+  introduced, and not fixed, by this PR:**
+  - `DashboardPage.jsx:14` and `HistoryPage.jsx:10` — "Cannot access variable
+    before it is declared"
+  - `HomePage.jsx:16` — calling `setState` synchronously inside an effect
+  - `llmHelper.js` — 2 unused-variable errors (`lines`, `reasoning`); these
+    sit at different line numbers after this change only because the added
+    lines above them shifted the file, not because anything new was added
+    there
 - Re-tested a fresh clone with **no** `.env.local` / API key present: the app
   renders normally (no blank screen) and the mock categorizer correctly
   produces Technical Problem / High urgency / escalation banner for an
