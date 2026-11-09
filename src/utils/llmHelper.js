@@ -5,20 +5,28 @@ import Groq from 'groq-sdk';
  * Using Groq API for AI-powered categorization
  */
 
-// Initialize Groq client
-const groq = new Groq({
-  apiKey: import.meta.env.VITE_GROQ_API_KEY,
-  dangerouslyAllowBrowser: true // Required for browser-based calls (not recommended for production!)
-});
+const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+
+// Groq's constructor throws synchronously if apiKey is missing/empty. Building
+// it eagerly at module scope meant any environment without a configured key
+// (a fresh clone, CI, a demo) crashed the whole React app before it could even
+// render, with nothing but a blank page. Build the client lazily instead, and
+// only when a key is actually present, so categorizeMessage can fall back to
+// the mock categorizer cleanly for every failure mode (no key, bad key,
+// network error, API error) through the same try/catch below.
+const groq = apiKey ? new Groq({ apiKey, dangerouslyAllowBrowser: true }) : null;
 
 /**
  * Categorize a customer support message using Groq AI
- * 
+ *
  * @param {string} message - The customer support message
  * @returns {Promise<{category: string, reasoning: string}>}
  */
 export async function categorizeMessage(message) {
   try {
+    if (!groq) {
+      throw new Error('VITE_GROQ_API_KEY is not configured');
+    }
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { categorizeMessage } from '../utils/llmHelper'
 import { calculateUrgency } from '../utils/urgencyScorer'
-import { getRecommendedAction } from '../utils/templates'
+import { getRecommendedAction, shouldEscalate } from '../utils/templates'
 
 function AnalyzePage() {
   const [message, setMessage] = useState('')
@@ -34,14 +34,16 @@ function AnalyzePage() {
       // Calculate urgency (rule-based)
       const urgency = calculateUrgency(message)
       
-      // Get recommended action (template-based)
-      const recommendedAction = getRecommendedAction(category)
-      
+      // Get recommended action (template-based, now urgency-aware)
+      const recommendedAction = getRecommendedAction(category, urgency)
+      const escalate = shouldEscalate(category, urgency)
+
       const analysisResult = {
         message,
         category,
         urgency,
         recommendedAction,
+        escalate,
         reasoning,
         timestamp: new Date().toISOString()
       }
@@ -147,6 +149,12 @@ function AnalyzePage() {
                   {results.urgency}
                 </div>
               </div>
+
+              {results.escalate && (
+                <div className="bg-red-50 border border-red-300 rounded-lg p-3 text-red-800 font-semibold">
+                  🚨 Escalate: this message was flagged High urgency and should go to a human now.
+                </div>
+              )}
 
               <div>
                 <div className="text-sm font-semibold text-gray-600 mb-1">Recommended Action</div>
