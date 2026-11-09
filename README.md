@@ -104,6 +104,71 @@ Can I upgrade my subscription to the pro plan?
 The dashboard won't load when I try to access it. I've tried refreshing but it keeps timing out.
 ```
 
+## Assessment Notes: Issues Found, Fixes, and Limitations
+
+As part of a technical assessment, the app was tested with 10 real-world customer
+messages and found to have three significant issues, two of which were fixed here
+(see PR [#1](https://github.com/abheeshudhungana-source/l2assessment/pull/1) for
+the full diff and commit history).
+
+### 1. Blank-screen crash with no API key configured
+
+`llmHelper.js` built the Groq client eagerly at module load. The SDK throws
+synchronously when the key is missing or empty, which crashed the whole React app
+before anything could render — a totally blank page on a clean clone, in CI, or in
+a demo, with nothing printed to the console. **Fixed**: the client is now built
+lazily and only when a key is present, so every failure mode (no key, bad key,
+network error, API error) falls through the same `try/catch` to the existing
+keyword-based mock categorizer.
+
+### 2. Urgency scoring was backwards on real incidents
+
+The original scorer keyed almost entirely on message *style* — length, ALL CAPS,
+`?`, even weekday/hour — instead of *content*. Before/after on the same 10 test
+messages:
+
+| Message | Before | After |
+|---|---|---|
+| "SERVER IS DOWN" | Low | **High** |
+| "Site down now" | Low | **High** |
+| "...charged my card twice...fraud..." (polite tone) | Low | **High** |
+| Long, mostly-positive message, one mild "slow" complaint | High | **Medium** |
+| "How do I reset my password?" | Low | Low |
+| "I'd like to cancel my subscription...higher than expected" | Low | Medium |
+
+**Fixed**: rewrote the scorer as tiered/gated logic — an actual severity signal
+(outage, fraud, security, data loss, explicit urgency language) now forces
+**High** regardless of tone, length, or punctuation; milder signals (bug, slow,
+frustrated, shouting, 2+ exclamation marks) lift a message to **Medium**; the
+old style-based penalties (caps lowering urgency, `?` lowering urgency,
+weekend/after-hours lowering urgency) were removed entirely, since none of them
+say anything about how serious the customer's actual problem is.
+
+### 3. Recommendation logic ignored urgency and had a copy-paste bug
+
+`templates.js` mapped `"Feature Request"` to the billing-portal message (copy-paste
+bug), `getRecommendedAction(category, urgency)` silently dropped the `urgency`
+argument it was already given, and a `shouldEscalate()` function existed but was
+never called anywhere in the app. **Fixed**: corrected the mapping, made
+recommendations urgency-aware (a High-urgency Billing/Technical issue now gets an
+explicit escalate-to-human instruction), and wired `shouldEscalate` into
+`AnalyzePage` with a visible escalation banner.
+
+### Known limitation: naive keyword gating can false-positive on negation
+
+The urgency scorer (and the mock categorizer it falls back to) match on raw
+substrings, with no negation handling. A message like **"no outage, thanks!"**
+or **"glad that's not a security issue"** would still match `outage` / `security`
+and get flagged **High**, even though the customer is explicitly saying the
+opposite. This wasn't in the original 10 test messages, so it slipped through
+re-testing, but it's a real gap worth calling out rather than overstating the
+fix's robustness. Out of scope for this pass; the fix would be a short
+negation-window check (e.g. don't count a critical-signal match if a negation
+word like "no"/"not"/"isn't" appears within a few words before it) before
+scoring. Flagging as a known issue rather than a blocking one, since
+false-positive-High is a much safer failure mode for a support-triage tool than
+false-negative-Low.
+
 ## Security Note
 
 ⚠️ **Warning**: This application exposes the Groq API key in the browser (using `dangerouslyAllowBrowser: true`). This is acceptable for local development only but should **NEVER** be done in production. In a real application, API calls should be made from a secure backend server.
