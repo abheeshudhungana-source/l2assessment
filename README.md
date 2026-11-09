@@ -168,12 +168,13 @@ Medium→Low, #8 High→Medium) under those conditions. Checked with
 against all 4 time conditions separately (not just the combined weekend+
 off-hours case): **either the weekend penalty alone or the off-hours
 penalty alone is already enough** to cause the one-level drop for all 4
-rows — the combined condition causes no additional drop beyond either
-penalty alone. This generalizes across the whole weekend/off-hours
-category, not just the specific Sunday 2am point tested, because the
-original code applies each penalty as a flat `-20`/`-15`, not a graduated
-one — any Saturday or Sunday triggers the same weekend penalty, and any
-hour before 9am or after 5pm triggers the same off-hours penalty. #7 in
+rows. The combined condition causes no additional drop beyond either
+penalty alone. For these four rows, this generalizes across the whole
+weekend/off-hours category, not just the specific Sunday 2am point tested,
+because the original code applies each penalty as a flat `-20`/`-15`, not
+a graduated one — any Saturday or Sunday triggers the same weekend penalty,
+and any hour before 9am or after 5:59pm triggers the same off-hours
+penalty. #7 in
 particular — shown
 above as unchanged (Medium→Medium) — would actually look like a Medium→Low
 *improvement* if this table had been run on a weekend instead of a Monday
