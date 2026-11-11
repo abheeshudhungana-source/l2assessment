@@ -215,27 +215,48 @@ scoring. Flagging as a known issue rather than a blocking one, since
 false-positive-High is a much safer failure mode for a support-triage tool than
 false-negative-Low.
 
-### Known limitation: critical-signal matching is substring-based, not word-boundary
+### Fixed: critical-signal matching is now word-boundary and negation-aware
 
-The same keyword matching also triggers on substrings inside unrelated words,
-since it's a plain `.includes()` check rather than a word-boundary match.
-Verified by extracting `CRITICAL_SIGNALS` and running the match logic
-directly against each example (not through the live app's UI): **"Can you
-help me download the invoice?"** matches `down` and gets flagged High; **"Is
-this legally binding?"** and **"illegal"** match `legal`; **"I love the new
-security camera app"** matches `security`. Same root cause as the negation
-issue above (no linguistic structure, just substrings) and the same fix
-direction — switch to word-boundary regex matching (e.g. `\bdown\b`) for the
-short, common words in `CRITICAL_SIGNALS` (`down`, `legal`, `security`,
-`asap`) that are most prone to this. Not fixed in this pass; listed here as
-a known issue.
+Two of the limitations below (negation, and substring matches on short common
+words) are now fixed — see PR [#2](https://github.com/abheeshudhungana-source/l2assessment/pull/2).
+`buildSignalRegex` matches each signal word on a word boundary (`\bdown\b`)
+instead of a plain `.includes()` check, and `isNegatedAt` checks the 4 words
+before a match for a negation cue (`no`, `not`, `isn't`, `never`, etc.).
+Verified directly against `calculateUrgency`, not through the live app's UI
+([`verification/compute_word_boundary_and_negation.mjs`](verification/compute_word_boundary_and_negation.mjs),
+reproducible with `node verification/compute_word_boundary_and_negation.mjs`):
 
-The duplicate-charge check (`reportsDuplicateCharge`) has the same
-substring-matching problem, not the negation problem above — it's a loose
-"charge" + "double"/"twice" check, not a misread negation. Verified the same
-way, by extracting `reportsDuplicateCharge` and running it directly: **"Can
-you double-check the charge on my account?"** returns `true`, even though
-nothing fraudulent is being reported.
+| Message | Before | After |
+| --- | --- | --- |
+| "no outage, thanks!" | High | **Low** |
+| "glad that's not a security issue" | High | **Low** |
+| "Can you help me download the invoice?" | High | **Low** |
+| "Is this legally binding?" | High | **Low** |
+| "illegal" | High | **Low** |
+
+A real critical report with no negation is still correctly flagged High
+(checked against "SERVER IS DOWN", "The site is down for everyone", a fraud
+report, and a legal-matter message), and all 10 of the original test
+messages score exactly as the table above still shows — this change doesn't
+touch any of those results.
+
+**Not fixed by this change, and not the same root cause:** "I love the new
+security camera app" still scores High. `security` is a correctly-bounded
+*whole word* there — word-boundary matching has nothing to fix, because
+there's no substring collision. This is the same word used in a different
+sense (a product feature, not an incident), which needs a semantic or
+collocation check, not a boundary fix. Listed as its own known issue below,
+alongside the duplicate-charge check, which has the identical shape.
+
+The duplicate-charge check (`reportsDuplicateCharge`) has the same shape as
+the "security camera" case above, not the substring or negation problems
+fixed by this change: `double` and `charge` are both correctly-matched
+*whole* words in "double-check the charge," so word-boundary matching has
+nothing to fix here either. It's a loose "charge" + "double"/"twice"
+co-occurrence check with no sense of what those words are doing next to each
+other. Verified the same way, by extracting `reportsDuplicateCharge` and
+running it directly: **"Can you double-check the charge on my account?"**
+returns `true`, even though nothing fraudulent is being reported.
 
 ### Known limitation: some real incidents without a critical keyword land at Medium, not High
 
@@ -284,6 +305,15 @@ standalone message instead of a prefix+base concatenation.
   renders normally (no blank screen) and the mock categorizer correctly
   produces Technical Problem / High urgency / escalation banner for an
   outage message.
+
+**For the word-boundary/negation fix (PR #2):** `npm run lint` and
+`npm run build` both pass with no new errors (same 5 pre-existing lint
+errors as above, none from this change). `node verification/compute_word_boundary_and_negation.mjs`
+confirms all 5 documented false-positive cases now score Low, confirms the
+"security camera" and duplicate-charge cases are correctly *not* claimed as
+fixed (different root cause, see above), confirms 4 genuine critical reports
+are still flagged High, and confirms all 10 of the original test messages
+still score exactly as the table earlier in this README shows.
 
 ## Security Note
 
