@@ -18,6 +18,20 @@
  * Medium but can't manufacture High on their own, so a handful of excited
  * punctuation in an otherwise calm message can no longer outscore an actual
  * incident report.
+ *
+ * Signal words are matched on word boundaries, not as plain substrings, so
+ * "down" no longer matches inside "download" and "legal" no longer matches
+ * inside "illegal" - see verification/compute_word_boundary_and_negation.cjs
+ * for the exact before/after cases this fixes. A short negation check also
+ * means "no outage, thanks!" and "that's not a security issue" are not
+ * flagged High just because the signal word is present.
+ *
+ * Known remaining gap (documented, not fixed here): this still only
+ * recognizes an incident if it uses one of the words below. "Nobody can log
+ * in" reports a real problem but matches no signal, so it scores the same as
+ * a routine question. Closing that needs expanding the signal vocabulary
+ * (or a semantic check), which is its own change with its own before/after
+ * verification - see README "Known limitations".
  */
 
 // Signals that something is actually broken, urgent, or harmful right now.
@@ -44,6 +58,40 @@ function reportsDuplicateCharge(lowerMessage) {
   return mentionsCharge && mentionsDuplicate;
 }
 
+// Negation cues that, when they appear shortly before a matched signal word,
+// mean the customer is ruling the problem OUT rather than reporting it - e.g.
+// "no outage, thanks!" or "glad that's not a security issue". Without this,
+// the match below would flag both of those High.
+const NEGATION_WORDS = [
+  'no', 'not', 'never', 'nothing', 'without',
+  "isn't", 'isnt', "wasn't", 'wasnt', "aren't", 'arent',
+  "doesn't", 'doesnt', "didn't", 'didnt', "don't", 'dont',
+];
+const NEGATION_WINDOW_WORDS = 4;
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Word-boundary match instead of a plain substring check, so short common
+// words in the signal lists only match as whole words. Without this,
+// "down" matches inside "download", "legal" matches inside "illegal", and
+// "security" matches "security camera" - none of which report an actual
+// incident.
+function buildSignalRegex(phrase) {
+  return new RegExp(`\\b${escapeRegExp(phrase)}\\b`, 'gi');
+}
+
+function isNegatedAt(lowerMessage, matchIndex) {
+  const precedingWords = lowerMessage
+    .slice(0, matchIndex)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(-NEGATION_WINDOW_WORDS);
+  return precedingWords.some((word) => NEGATION_WORDS.includes(word.replace(/[.,!?;:]+$/, '')));
+}
+
 // Milder signals worth a smaller bump: something is wrong, but not
 // necessarily on fire. These can push a message into Medium, not High.
 const MODERATE_SIGNALS = [
@@ -56,7 +104,18 @@ const MODERATE_SIGNALS = [
 const POSITIVE_SIGNALS = ['happy', 'love', 'great', 'excellent', 'wonderful'];
 
 function countMatches(lowerMessage, phrases) {
-  return phrases.reduce((count, phrase) => count + (lowerMessage.includes(phrase) ? 1 : 0), 0);
+  let count = 0;
+  for (const phrase of phrases) {
+    const regex = buildSignalRegex(phrase);
+    let match = regex.exec(lowerMessage);
+    while (match !== null) {
+      if (!isNegatedAt(lowerMessage, match.index)) {
+        count += 1;
+      }
+      match = regex.exec(lowerMessage);
+    }
+  }
+  return count;
 }
 
 export function calculateUrgency(message) {
